@@ -246,8 +246,8 @@
     <script>
         // Speed slider label mapping
         const speedLabels = ['Very Slow', 'Slow', 'Normal', 'Fast', 'Very Fast'];
-        // Steps drawn per animation frame at each speed level
-        const stepsPerFrame = [1, 2, 5, 15, 999];
+        // Steps drawn per second at each speed level (last entry = instant/skip)
+        const stepsPerSecond = [10, 30, 60, 300, Infinity];
 
         document.getElementById('speedSlider').addEventListener('input', function() {
             document.getElementById('speedLabel').textContent = speedLabels[this.value - 1];
@@ -272,6 +272,7 @@
         let animationIndex = 0;
         let chartCtx = null;
         let chartDims = {};
+        let lastTimestamp = null;
 
         function visualize() {
             const input = document.getElementById('numberInput').value;
@@ -295,6 +296,7 @@
                 cancelAnimationFrame(animationId);
                 animationId = null;
             }
+            lastTimestamp = null;
 
             currentSequence = collatzSequence(num);
             const maxValue = Math.max(...currentSequence);
@@ -311,7 +313,7 @@
 
             setupChart(currentSequence);
             animationIndex = 0;
-            animate();
+            animationId = requestAnimationFrame(animate);
         }
 
         function setupChart(sequence) {
@@ -380,10 +382,21 @@
             return { x, y };
         }
 
-        function animate() {
+        function animate(timestamp) {
             const speed = parseInt(document.getElementById('speedSlider').value);
-            const batch = stepsPerFrame[speed - 1];
+            const rate = stepsPerSecond[speed - 1];
             const seq = currentSequence;
+
+            // Compute how many steps to draw this frame based on elapsed time
+            let batch;
+            if (!isFinite(rate)) {
+                batch = seq.length; // instant
+            } else {
+                if (lastTimestamp === null) lastTimestamp = timestamp;
+                const elapsed = (timestamp - lastTimestamp) / 1000; // seconds
+                lastTimestamp = timestamp;
+                batch = Math.max(1, Math.round(elapsed * rate));
+            }
 
             // Draw batch of segments
             for (let i = 0; i < batch; i++) {
@@ -415,7 +428,6 @@
             // Update live step counter
             document.getElementById('stepCounter').textContent = `Step: ${animationIndex}`;
 
-            animationId = requestAnimationFrame(animate);
         }
 
         function finishAnimation() {
